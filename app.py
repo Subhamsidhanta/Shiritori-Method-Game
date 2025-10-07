@@ -26,7 +26,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if GEMINI_API_KEY and GENAI_AVAILABLE:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("Gemini AI successfully configured")
     except Exception as e:
         logger.warning(f"Failed to configure Gemini AI: {e}")
@@ -487,4 +487,5 @@ if __name__ == '__main__':
     print("=" * 50)
     
     # Run the Flask app
+
     app.run(debug=debug, host=host, port=port)
