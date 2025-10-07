@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: shiritori-method-game
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: false
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /health

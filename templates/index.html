@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shiritori Method Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="title">
+                <i class="fas fa-brain"></i>
+                Shiritori Method Game
+            </h1>
+            <div class="score-display">
+                <div class="score-item">
+                    <i class="fas fa-trophy"></i>
+                    <span>Score: <span id="score">0</span></span>
+                </div>
+                <div class="score-item">
+                    <i class="fas fa-clock"></i>
+                    <span>Time: <span id="timer">0</span>s</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Game Mode Selection -->
+        <div id="mode-selection" class="game-section active">
+            <h2>Choose Your Game Mode</h2>
+            <div class="mode-buttons">
+                <button class="mode-btn" onclick="selectMode('number')">
+                    <i class="fas fa-calculator"></i>
+                    <span>Number Memory</span>
+                    <p>Remember number sequences</p>
+                </button>
+                <button class="mode-btn" onclick="selectMode('words')">
+                    <i class="fas fa-spell-check"></i>
+                    <span>Word Game</span>
+                    <p>Shiritori word chain game</p>
+                </button>
+            </div>
+        </div>
+
+        <div id="number-setup" class="game-section">
+            <h2>Number Memory Game Setup</h2>
+            <form onsubmit="event.preventDefault(); startNumberGame(); return false;">
+                <div class="setup-form">
+                    <div class="input-group">
+                        <label for="min-range">Minimum Number:</label>
+                        <input type="number" id="min-range" value="1" min="1">
+                    </div>
+                    <div class="input-group">
+                        <label for="max-range">Maximum Number:</label>
+                        <input type="number" id="max-range" value="100" min="2">
+                    </div>
+                    <div class="input-group">
+                        <label for="memory-time">Memory Time (seconds):</label>
+                        <input type="number" id="memory-time" value="3" min="1" max="10">
+                    </div>
+                    <button type="submit" class="start-btn">
+                        <i class="fas fa-play"></i>
+                        Start Game
+                    </button>
+                    <button type="button" class="view-scores-btn" onclick="showNumberScores()">
+                        <i class="fas fa-trophy"></i>
+                        View Number Game Scores
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Number Game Play -->
+        <div id="number-game" class="game-section">
+            <h2>Remember the Numbers</h2>
+            <div class="number-display" id="number-display"></div>
+            <div class="game-controls">
+                <form onsubmit="event.preventDefault(); submitNumbers(); return false;">
+                    <div class="input-group">
+                        <input type="text" id="number-input" placeholder="Enter the numbers you saw" autocomplete="off">
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-check"></i>
+                            Submit
+                        </button>
+                    </div>
+                </form>
+                <div class="round-info">
+                    <span>Round: <span id="round-number">1</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="word-setup" class="game-section">
+            <h2>Word Game Setup</h2>
+            <form onsubmit="event.preventDefault(); startWordGame(); return false;">
+                <div class="setup-form">
+                    <div class="input-group">
+                        <label for="topic-input">Enter Topic:</label>
+                        <input type="text" id="topic-input" placeholder="e.g., fruits, colors, animals" autocomplete="off">
+                    </div>
+                    <div class="topic-suggestions">
+                        <button type="button" class="topic-btn" onclick="selectTopic('fruits')">Fruits</button>
+                        <button type="button" class="topic-btn" onclick="selectTopic('colors')">Colors</button>
+                        <button type="button" class="topic-btn" onclick="selectTopic('animals')">Animals</button>
+                        <button type="button" class="topic-btn" onclick="selectTopic('programming')">Programming</button>
+                        <button type="button" class="topic-btn random-btn" onclick="selectRandomTopic()">
+                            <i class="fas fa-random"></i>
+                            Random Topic
+                        </button>
+                    </div>
+                    <button type="submit" class="start-btn">
+                        <i class="fas fa-play"></i>
+                        Start Game
+                    </button>
+                    <button type="button" class="view-scores-btn" onclick="showWordScores()">
+                        <i class="fas fa-trophy"></i>
+                        View Word Game Scores
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Word Game Play -->
+        <div id="word-game" class="game-section">
+            <h2>Shiritori Word Game</h2>
+            <div class="topic-display">
+                Topic: <span id="current-topic"></span>
+                <div class="topic-examples" id="topic-examples">
+                    <!-- Topic examples will be shown here -->
+                </div>
+            </div>
+            
+            <div class="word-sequence" id="word-sequence">
+                <!-- Word sequence will be displayed here -->
+            </div>
+            
+            <div class="current-word-display">
+                <div class="ai-word">
+                    <i class="fas fa-robot"></i>
+                    <span>AI Word: <span id="ai-word"></span></span>
+                </div>
+                <div class="timer-display">
+                    <i class="fas fa-hourglass-half"></i>
+                    <span id="word-timer">15</span>s
+                </div>
+            </div>
+            
+            <div class="word-input-section">
+                <form onsubmit="event.preventDefault(); submitWord(); return false;">
+                    <div class="input-group">
+                        <input type="text" id="word-input" placeholder="Enter your word" autocomplete="off">
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-paper-plane"></i>
+                            Submit
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="arrangement-section" id="arrangement-section" style="display: none;">
+                <h3>Arrange the word sequence in the correct order:</h3>
+                <div class="arrangement-instructions">
+                    <p>Click the words in the order they appeared in the game. Numbers will show the sequence.</p>
+                </div>
+                <div class="arrangement-buttons" id="arrangement-buttons"></div>
+                <button class="confirm-btn" onclick="confirmArrangement()">
+                    <i class="fas fa-check-circle"></i>
+                    Confirm Sequence
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over -->
+        <div id="game-over" class="game-section">
+            <h2>Game Over!</h2>
+            <div class="final-score">
+                <i class="fas fa-trophy"></i>
+                <span>Final Score: <span id="final-score">0</span></span>
+            </div>
+            <div class="game-stats">
+                <div class="stat">
+                    <i class="fas fa-clock"></i>
+                    <span>Time Played: <span id="time-played">0</span>s</span>
+                </div>
+                <div class="stat">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Best Streak: <span id="best-streak">0</span></span>
+                </div>
+            </div>
+            <div class="restart-buttons">
+                <button class="restart-btn" onclick="restartGame()">
+                    <i class="fas fa-redo"></i>
+                    Play Again
+                </button>
+                <button class="home-btn" onclick="goHome()">
+                    <i class="fas fa-home"></i>
+                    Main Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Individual Number Scoreboard -->
+        <div id="number-scoreboard" class="game-section">
+            <h2><i class="fas fa-sort-numeric-up"></i> Number Memory Game - High Scores</h2>
+            <div class="scoreboard-section">
+                <div class="scoreboard">
+                    <div class="score-header">
+                        <span>Rank</span>
+                        <span>Score</span>
+                        <span>Details</span>
+                        <span>Date</span>
+                    </div>
+                    <div class="score-list" id="number-scores-list">
+                        <!-- Number game scores will be populated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="scoreboard-buttons">
+                <button class="clear-scores-btn" onclick="clearScores('number')">
+                    <i class="fas fa-trash"></i>
+                    Clear Number Scores
+                </button>
+                <button class="home-btn" onclick="goHome()">
+                    <i class="fas fa-home"></i>
+                    Main Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Individual Word Scoreboard -->
+        <div id="word-scoreboard" class="game-section">
+            <h2><i class="fas fa-spell-check"></i> Word Shiritori Game - High Scores</h2>
+            <div class="scoreboard-section">
+                <div class="scoreboard">
+                    <div class="score-header">
+                        <span>Rank</span>
+                        <span>Score</span>
+                        <span>Details</span>
+                        <span>Date</span>
+                    </div>
+                    <div class="score-list" id="word-scores-list">
+                        <!-- Word game scores will be populated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="scoreboard-buttons">
+                <button class="clear-scores-btn" onclick="clearScores('word')">
+                    <i class="fas fa-trash"></i>
+                    Clear Word Scores
+                </button>
+                <button class="home-btn" onclick="goHome()">
+                    <i class="fas fa-home"></i>
+                    Main Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Combined Scoreboards -->
+        <div id="scoreboards" class="game-section">
+            <h2><i class="fas fa-trophy"></i> Scoreboards</h2>
+            
+            <!-- Number Memory Game Scoreboard -->
+            <div class="scoreboard-section">
+                <h3><i class="fas fa-sort-numeric-up"></i> Number Memory Game - High Scores</h3>
+                <div class="scoreboard" id="number-scoreboard">
+                    <div class="score-header">
+                        <span>Rank</span>
+                        <span>Score</span>
+                        <span>Level</span>
+                        <span>Date</span>
+                    </div>
+                    <div class="score-list" id="number-scores">
+                        <!-- Number game scores will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Word Shiritori Game Scoreboard -->
+            <div class="scoreboard-section">
+                <h3><i class="fas fa-spell-check"></i> Word Shiritori Game - High Scores</h3>
+                <div class="scoreboard" id="word-scoreboard">
+                    <div class="score-header">
+                        <span>Rank</span>
+                        <span>Score</span>
+                        <span>Words</span>
+                        <span>Date</span>
+                    </div>
+                    <div class="score-list" id="word-scores">
+                        <!-- Word game scores will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="scoreboard-buttons">
+                <button class="clear-scores-btn" onclick="clearScores('number')">
+                    <i class="fas fa-trash"></i>
+                    Clear Number Scores
+                </button>
+                <button class="clear-scores-btn" onclick="clearScores('word')">
+                    <i class="fas fa-trash"></i>
+                    Clear Word Scores
+                </button>
+                <button class="home-btn" onclick="goHome()">
+                    <i class="fas fa-home"></i>
+                    Main Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loading" class="loading-screen">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Notification -->
+        <div id="notification" class="notification">
+            <span id="notification-text"></span>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='game.js') }}"></script>
+</body>
+</html>
