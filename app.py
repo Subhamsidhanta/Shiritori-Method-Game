@@ -410,12 +410,23 @@ def save_scores(scores):
 def save_score():
     """Save a game score"""
     try:
-        data = request.get_json()
+        # Accept JSON; if missing, log raw body for debugging (Render issues)
+        data = request.get_json(silent=True)
+        if data is None:
+            raw_body = request.data.decode('utf-8', errors='ignore')
+            logger.warning(f"/save-score received non-JSON body: {raw_body}")
+            return jsonify({"success": False, "error": "Invalid JSON payload"}), 400
+        logger.info(f"/save-score payload: {data}")
         game_type = data.get('gameType')  # 'number' or 'word'
         score = data.get('score', 0)
         level = data.get('level', 1)
         words_count = data.get('wordsCount', 0)
         time_played = data.get('timePlayed', 0)
+        # Optional enriched metadata (may be absent in older clients)
+        range_desc = data.get('range')  # e.g. "1-100"
+        memory_time = data.get('memoryTime')
+        topic = data.get('topic')
+        chain_length = data.get('chainLength')
         
         if game_type not in ['number', 'word']:
             return jsonify({"success": False, "error": "Invalid game type"})
@@ -433,12 +444,20 @@ def save_score():
         
         if game_type == 'number':
             score_entry['level'] = level
+            if range_desc:
+                score_entry['range'] = range_desc
+            if memory_time is not None:
+                score_entry['memoryTime'] = memory_time
             scores['number_game'].append(score_entry)
             # Keep only top 10 scores
             scores['number_game'] = sorted(scores['number_game'], 
                                          key=lambda x: x['score'], reverse=True)[:10]
         else:  # word game
             score_entry['wordsCount'] = words_count
+            if topic:
+                score_entry['topic'] = topic
+            if chain_length is not None:
+                score_entry['chainLength'] = chain_length
             scores['word_game'].append(score_entry)
             # Keep only top 10 scores
             scores['word_game'] = sorted(scores['word_game'], 
@@ -492,6 +511,21 @@ def clear_scores(game_type):
     except Exception as e:
         logger.error(f"Error clearing scores: {e}")
         return jsonify({"success": False, "error": str(e)})
+
+@app.route('/_debug/request', methods=['POST'])
+def debug_request():
+    """Diagnostic endpoint to inspect request on Render vs local."""
+    try:
+        payload = request.get_json(silent=True)
+        return jsonify({
+            'method': request.method,
+            'headers': {k: v for k, v in request.headers.items()},
+            'json': payload,
+            'raw': request.data.decode('utf-8', errors='ignore'),
+            'content_type': request.content_type
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.errorhandler(404)
 def not_found(error):
