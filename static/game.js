@@ -349,16 +349,16 @@ function submitNumbers() {
     game.numberInput.disabled = true;
     
     // Send diagnostic payload
-    try {
-        fetch('/_debug/client-log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-            event: 'number_submit_attempt',
-            round: game.round,
-            userInput,
-            correctAnswer,
-            lengthMatch: userInput.length === correctAnswer.length,
-            equality: userInput === correctAnswer
-        })});
-    } catch(e) {}
+    // try {
+    //     fetch('/_debug/client-log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    //         event: 'number_submit_attempt',
+    //         round: game.round,
+    //         userInput,
+    //         correctAnswer,
+    //         lengthMatch: userInput.length === correctAnswer.length,
+    //         equality: userInput === correctAnswer
+    //     })});
+    // } catch(e) {}
 
     if (userInput === correctAnswer) {
         console.log('Correct answer!');
