@@ -78,10 +78,10 @@
             <h2>Remember the Numbers</h2>
             <div class="number-display" id="number-display"></div>
             <div class="game-controls">
-                <form onsubmit="event.preventDefault(); submitNumbers(); return false;">
+                <form onsubmit="console.log('Form submitted'); event.preventDefault(); submitNumbers(); return false;">
                     <div class="input-group">
                         <input type="text" id="number-input" placeholder="Enter the numbers you saw" autocomplete="off">
-                        <button type="submit" class="submit-btn">
+                        <button type="submit" class="submit-btn" onclick="console.log('Submit button clicked');">
                             <i class="fas fa-check"></i>
                             Submit
                         </button>

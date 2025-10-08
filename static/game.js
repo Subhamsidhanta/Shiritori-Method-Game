@@ -304,12 +304,18 @@ function updateAnswerTimerDisplay() {
 }
 
 function submitNumbers() {
+    console.log('submitNumbers() called');
+    console.log('canSubmitNumbers:', game.canSubmitNumbers);
+    console.log('isShowingNumbers:', game.isShowingNumbers);
+    
     // Prevent multiple submissions
     if (!game.canSubmitNumbers || game.isShowingNumbers) {
+        console.log('Submission blocked - conditions not met');
         return;
     }
     
     game.canSubmitNumbers = false;
+    console.log('Processing number submission...');
     
     // Clear answer timer
     if (game.answerTimer) {
@@ -326,10 +332,14 @@ function submitNumbers() {
     const userInput = game.numberInput.value.trim();
     const correctAnswer = game.currentNumbers.join('');
     
+    console.log('User input:', userInput);
+    console.log('Correct answer:', correctAnswer);
+    
     // Disable input to prevent further submissions
     game.numberInput.disabled = true;
     
     if (userInput === correctAnswer) {
+        console.log('Correct answer!');
         game.updateScore();
         game.round++;
         game.numberDisplay.textContent = 'Correct! Get ready for next round...';
@@ -338,6 +348,7 @@ function submitNumbers() {
             generateNewNumber();
         }, 2000);
     } else {
+        console.log('Wrong answer!');
         game.resetStreak();
         game.numberDisplay.textContent = `Wrong! Answer was: ${correctAnswer}`;
         game.showNotification(`Wrong! Correct answer was: ${correctAnswer}`, 'error');
@@ -958,12 +969,16 @@ function showNotification(message, type = 'info') {
 // Score Management Functions
 async function saveScore(gameType, score, additionalData = {}) {
     try {
+        console.log('Saving score:', {gameType, score, additionalData});
+        
         const scoreData = {
             gameType: gameType,
             score: score,
             timePlayed: Math.floor((Date.now() - game.startTime) / 1000),
             ...additionalData
         };
+        
+        console.log('Score data to send:', scoreData);
         
         const response = await fetch('/save-score', {
             method: 'POST',
@@ -973,15 +988,26 @@ async function saveScore(gameType, score, additionalData = {}) {
             body: JSON.stringify(scoreData)
         });
         
+        console.log('Save score response status:', response.status);
+        
+        if (!response.ok) {
+            console.error('Save score response not ok:', response.status, response.statusText);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('Save score result:', result);
+        
         if (result.success) {
             console.log('Score saved successfully');
             showNotification('Score saved to leaderboard!', 'success');
         } else {
             console.error('Failed to save score:', result.error);
+            showNotification('Failed to save score: ' + (result.error || 'Unknown error'), 'error');
         }
     } catch (error) {
         console.error('Error saving score:', error);
+        showNotification('Error saving score: ' + error.message, 'error');
     }
 }
 

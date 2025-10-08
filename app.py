@@ -21,12 +21,16 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Configure Flask app for production
+app.config['ENV'] = os.getenv('FLASK_ENV', 'production')
+app.config['DEBUG'] = os.getenv('FLASK_ENV') != 'production'
+
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if GEMINI_API_KEY and GENAI_AVAILABLE:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-pro')
         logger.info("Gemini AI successfully configured")
     except Exception as e:
         logger.warning(f"Failed to configure Gemini AI: {e}")
@@ -318,13 +322,24 @@ def validate_real_word_fallback(word: str) -> bool:
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
-    ai_status = "available" if (model and GEMINI_API_KEY and GENAI_AVAILABLE) else "fallback"
-    return jsonify({
-        "status": "healthy",
-        "ai_status": ai_status,
-        "genai_installed": GENAI_AVAILABLE,
-        "version": "1.0.0"
-    })
+    try:
+        ai_status = "available" if (model and GEMINI_API_KEY and GENAI_AVAILABLE) else "fallback"
+        return jsonify({
+            "status": "healthy",
+            "ai_status": ai_status,
+            "genai_installed": GENAI_AVAILABLE,
+            "has_api_key": bool(GEMINI_API_KEY),
+            "version": "1.0.0",
+            "flask_env": os.getenv('FLASK_ENV', 'development'),
+            "port": os.getenv('PORT', 'not set')
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "version": "1.0.0"
+        }), 500
 
 # Score Management Routes
 SCORES_FILE = 'game_scores.json'
