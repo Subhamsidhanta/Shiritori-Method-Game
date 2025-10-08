@@ -5,14 +5,6 @@ import logging
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 
-# Load environment variables from .env file (for local development)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    # python-dotenv not available, skip loading .env file
-    pass
-
 # Try to import Gemini AI, but gracefully handle if not available
 try:
     import google.generativeai as genai
@@ -457,9 +449,8 @@ def internal_error(error):
 if __name__ == '__main__':
     # Get configuration from environment variables
     host = os.getenv('FLASK_HOST', '0.0.0.0')
-    # Use PORT for Render/Heroku compatibility, fallback to FLASK_PORT, then default to 5000
-    port = int(os.getenv('PORT', os.getenv('FLASK_PORT', '5000')))
-    debug = os.getenv('FLASK_ENV') != 'production' and os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    port = int(os.getenv('FLASK_PORT', '5000'))
+    debug = os.getenv('FLASK_ENV') != 'production'
     
     # Print startup information
     print("🎮 Shiritori Method Game Server Starting...")

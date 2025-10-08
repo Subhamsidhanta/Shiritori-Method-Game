@@ -13,6 +13,13 @@
       "timestamp": "2025-10-08T09:41:33.062694",
       "timePlayed": 31,
       "level": 2
+    },
+    {
+      "score": 2,
+      "date": "2025-10-08 09:56",
+      "timestamp": "2025-10-08T09:56:39.178428",
+      "timePlayed": 22,
+      "level": 2
     }
   ],
   "word_game": [
@@ -22,6 +29,13 @@
       "timestamp": "2025-10-08T09:43:08.850163",
       "timePlayed": 81,
       "wordsCount": 2
+    },
+    {
+      "score": 1,
+      "date": "2025-10-08 09:57",
+      "timestamp": "2025-10-08T09:57:29.618206",
+      "timePlayed": 46,
+      "wordsCount": 1
     }
   ]
 }
