@@ -311,6 +311,16 @@ function submitNumbers() {
     // Prevent multiple submissions
     if (!game.canSubmitNumbers || game.isShowingNumbers) {
         console.log('Submission blocked - conditions not met');
+        try {
+            fetch('/_debug/client-log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+                event: 'number_submit_blocked',
+                canSubmitNumbers: game.canSubmitNumbers,
+                isShowingNumbers: game.isShowingNumbers,
+                round: game.round,
+                currentNumbers: game.currentNumbers,
+                userValue: game.numberInput.value
+            })});
+        } catch(e) {}
         return;
     }
     
@@ -338,6 +348,18 @@ function submitNumbers() {
     // Disable input to prevent further submissions
     game.numberInput.disabled = true;
     
+    // Send diagnostic payload
+    try {
+        fetch('/_debug/client-log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+            event: 'number_submit_attempt',
+            round: game.round,
+            userInput,
+            correctAnswer,
+            lengthMatch: userInput.length === correctAnswer.length,
+            equality: userInput === correctAnswer
+        })});
+    } catch(e) {}
+
     if (userInput === correctAnswer) {
         console.log('Correct answer!');
         game.updateScore();

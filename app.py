@@ -527,6 +527,13 @@ def debug_request():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/_debug/client-log', methods=['POST'])
+def client_log():
+    """Receive client-side diagnostics (used only temporarily for debugging)."""
+    payload = request.get_json(silent=True) or {}
+    logger.info(f"CLIENT-DIAG: {payload}")
+    return jsonify({"received": True})
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Not found"}), 404
