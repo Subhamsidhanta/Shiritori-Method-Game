@@ -3,7 +3,7 @@ import random
 import json
 import logging
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 
 # Try to import Gemini AI, but gracefully handle if not available
 try:
@@ -24,6 +24,8 @@ app = Flask(__name__)
 # Configure Flask app for production
 app.config['ENV'] = os.getenv('FLASK_ENV', 'production')
 app.config['DEBUG'] = os.getenv('FLASK_ENV') != 'production'
+# Ensure proper static file handling in production
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600  # 1 hour cache for static files
 
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -86,6 +88,17 @@ class GameData:
 def index():
     """Serve the main game page"""
     return render_template('index.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    """Handle favicon requests"""
+    return '', 204  # No Content
+
+# Explicit static file serving for production environments
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files explicitly in production"""
+    return send_from_directory('static', filename)
 
 @app.route('/get-random-topic', methods=['POST'])
 def get_random_topic():
@@ -342,27 +355,55 @@ def health_check():
         }), 500
 
 # Score Management Routes
-SCORES_FILE = 'game_scores.json'
+# Use environment variable for scores file location, default to local file
+SCORES_FILE = os.getenv('SCORES_FILE', 'game_scores.json')
+# Ensure scores directory exists
+scores_dir = os.path.dirname(os.path.abspath(SCORES_FILE))
+if not os.path.exists(scores_dir):
+    try:
+        os.makedirs(scores_dir)
+    except Exception as e:
+        logger.warning(f"Could not create scores directory: {e}")
 
 def load_scores():
     """Load scores from JSON file"""
     try:
-        if os.path.exists(SCORES_FILE):
+        if os.path.exists(SCORES_FILE) and os.path.getsize(SCORES_FILE) > 0:
             with open(SCORES_FILE, 'r') as f:
-                return json.load(f)
+                data = json.load(f)
+                # Ensure required keys exist
+                if 'number_game' not in data:
+                    data['number_game'] = []
+                if 'word_game' not in data:
+                    data['word_game'] = []
+                return data
+        return {'number_game': [], 'word_game': []}
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Score file corrupted or inaccessible, starting fresh: {e}")
         return {'number_game': [], 'word_game': []}
     except Exception as e:
-        logger.error(f"Error loading scores: {e}")
+        logger.error(f"Unexpected error loading scores: {e}")
         return {'number_game': [], 'word_game': []}
 
 def save_scores(scores):
     """Save scores to JSON file"""
     try:
-        with open(SCORES_FILE, 'w') as f:
+        # Create temporary file first
+        temp_file = SCORES_FILE + '.tmp'
+        with open(temp_file, 'w') as f:
             json.dump(scores, f, indent=2)
+        # Atomic rename
+        if os.path.exists(SCORES_FILE):
+            os.remove(SCORES_FILE)
+        os.rename(temp_file, SCORES_FILE)
         return True
+    except OSError as e:
+        logger.warning(f"Could not save scores to file (common on read-only filesystems): {e}")
+        # On Render or similar platforms, the filesystem is ephemeral
+        # Scores will be lost on restart, but the game will continue to work
+        return False
     except Exception as e:
-        logger.error(f"Error saving scores: {e}")
+        logger.error(f"Unexpected error saving scores: {e}")
         return False
 
 @app.route('/save-score', methods=['POST'])
@@ -464,7 +505,8 @@ def internal_error(error):
 if __name__ == '__main__':
     # Get configuration from environment variables
     host = os.getenv('FLASK_HOST', '0.0.0.0')
-    port = int(os.getenv('FLASK_PORT', '5000'))
+    # Use PORT env var (required by Render) or fall back to FLASK_PORT then 5000
+    port = int(os.getenv('PORT', os.getenv('FLASK_PORT', '5000')))
     debug = os.getenv('FLASK_ENV') != 'production'
     
     # Print startup information
