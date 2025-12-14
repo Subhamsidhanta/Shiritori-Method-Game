@@ -4,6 +4,16 @@ import json
 import logging
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import SQLAlchemyError
+
+# Try to import Flask-Migrate, but gracefully handle if not available
+try:
+    from flask_migrate import Migrate  # type: ignore
+    MIGRATE_AVAILABLE = True
+except ImportError:
+    MIGRATE_AVAILABLE = False
+    Migrate = None
 
 # Try to import Gemini AI, but gracefully handle if not available
 try:
@@ -20,6 +30,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Database Configuration
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    # Fix for Heroku/Render postgres URLs
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+if DATABASE_URL:
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    # Fallback to SQLite for local development
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///shiritori_game.db'
+
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_recycle': 300,
+    'pool_pre_ping': True
+}
+
+# Initialize database
+db = SQLAlchemy(app)
+
+# Initialize migration support if available
+if MIGRATE_AVAILABLE:
+    migrate = Migrate(app, db)
+else:
+    migrate = None
 
 # Configure Flask app for production
 app.config['ENV'] = os.getenv('FLASK_ENV', 'production')
@@ -83,6 +120,71 @@ class GameData:
         "sports": ["sport", "game", "athletic", "competition", "team", "player", "ball", "field", "court"],
         "cars": ["car", "vehicle", "automobile", "motor", "engine", "brand", "model", "transportation"]
     }
+
+# Database Models
+class GameScore(db.Model):
+    __tablename__ = 'game_scores'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    game_type = db.Column(db.String(20), nullable=False, index=True)  # 'number' or 'word'
+    score = db.Column(db.Integer, nullable=False)
+    
+    # Common fields
+    time_played = db.Column(db.Integer, nullable=False)  # seconds
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Number game specific fields
+    level = db.Column(db.Integer, nullable=True)
+    min_range = db.Column(db.Integer, nullable=True)
+    max_range = db.Column(db.Integer, nullable=True)
+    memory_time = db.Column(db.Integer, nullable=True)
+    
+    # Word game specific fields
+    topic = db.Column(db.String(100), nullable=True)
+    words_count = db.Column(db.Integer, nullable=True)
+    chain_length = db.Column(db.Integer, nullable=True)
+    
+    # Player metadata (optional for future features)
+    player_id = db.Column(db.String(100), nullable=True)
+    player_name = db.Column(db.String(50), nullable=True)
+    
+    def __repr__(self):
+        return f'<GameScore {self.game_type}: {self.score} points>'
+    
+    def to_dict(self):
+        """Convert to dictionary for JSON serialization"""
+        data = {
+            'id': self.id,
+            'score': self.score,
+            'timePlayed': self.time_played,
+            'date': self.created_at.strftime('%Y-%m-%d %H:%M'),
+            'timestamp': self.created_at.isoformat()
+        }
+        
+        if self.game_type == 'number':
+            data.update({
+                'level': self.level,
+                'range': f"{self.min_range}-{self.max_range}" if self.min_range and self.max_range else None,
+                'memoryTime': self.memory_time
+            })
+        elif self.game_type == 'word':
+            data.update({
+                'topic': self.topic,
+                'wordsCount': self.words_count,
+                'chainLength': self.chain_length
+            })
+        
+        return data
+
+# Database initialization function
+def init_db():
+    """Initialize database tables"""
+    try:
+        with app.app_context():
+            db.create_all()
+            logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Error creating database tables: {e}")
 
 @app.route('/')
 def index():
@@ -354,139 +456,139 @@ def health_check():
             "version": "1.0.0"
         }), 500
 
-# Score Management Routes
-# Use environment variable for scores file location, default to local file
-SCORES_FILE = os.getenv('SCORES_FILE', 'game_scores.json')
-# Ensure scores directory exists
-scores_dir = os.path.dirname(os.path.abspath(SCORES_FILE))
-if not os.path.exists(scores_dir):
+# Database Score Management Functions
+def save_score_to_db(game_type, score_data):
+    """Save score to PostgreSQL database"""
     try:
-        os.makedirs(scores_dir)
-    except Exception as e:
-        logger.warning(f"Could not create scores directory: {e}")
-
-def load_scores():
-    """Load scores from JSON file"""
-    try:
-        if os.path.exists(SCORES_FILE) and os.path.getsize(SCORES_FILE) > 0:
-            with open(SCORES_FILE, 'r') as f:
-                data = json.load(f)
-                # Ensure required keys exist
-                if 'number_game' not in data:
-                    data['number_game'] = []
-                if 'word_game' not in data:
-                    data['word_game'] = []
-                return data
-        return {'number_game': [], 'word_game': []}
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning(f"Score file corrupted or inaccessible, starting fresh: {e}")
-        return {'number_game': [], 'word_game': []}
-    except Exception as e:
-        logger.error(f"Unexpected error loading scores: {e}")
-        return {'number_game': [], 'word_game': []}
-
-def save_scores(scores):
-    """Save scores to JSON file"""
-    try:
-        # Create temporary file first
-        temp_file = SCORES_FILE + '.tmp'
-        with open(temp_file, 'w') as f:
-            json.dump(scores, f, indent=2)
-        # Atomic rename
-        if os.path.exists(SCORES_FILE):
-            os.remove(SCORES_FILE)
-        os.rename(temp_file, SCORES_FILE)
+        # Create new score record
+        new_score = GameScore(
+            game_type=game_type,
+            score=score_data['score'],
+            time_played=score_data['timePlayed'],
+            player_id=score_data.get('playerId'),
+            player_name=score_data.get('playerName')
+        )
+        
+        # Add game-specific fields
+        if game_type == 'number':
+            new_score.level = score_data.get('level')
+            new_score.min_range = score_data.get('minRange')
+            new_score.max_range = score_data.get('maxRange')
+            new_score.memory_time = score_data.get('memoryTime')
+        elif game_type == 'word':
+            new_score.topic = score_data.get('topic')
+            new_score.words_count = score_data.get('wordsCount')
+            new_score.chain_length = score_data.get('chainLength')
+        
+        # Save to database
+        db.session.add(new_score)
+        db.session.commit()
+        
+        logger.info(f"Score saved successfully: {game_type} - {score_data['score']} points")
         return True
-    except OSError as e:
-        logger.warning(f"Could not save scores to file (common on read-only filesystems): {e}")
-        # On Render or similar platforms, the filesystem is ephemeral
-        # Scores will be lost on restart, but the game will continue to work
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database error saving score: {e}")
+        db.session.rollback()
         return False
     except Exception as e:
-        logger.error(f"Unexpected error saving scores: {e}")
+        logger.error(f"Error saving score to database: {e}")
+        db.session.rollback()
+        return False
+
+def get_top_scores(game_type, limit=10):
+    """Get top scores for a game type from database"""
+    try:
+        scores = GameScore.query.filter_by(game_type=game_type)\
+                              .order_by(GameScore.score.desc())\
+                              .limit(limit)\
+                              .all()
+        
+        return [score.to_dict() for score in scores]
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database error getting scores: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Error getting scores from database: {e}")
+        return []
+
+def clear_scores_db(game_type):
+    """Clear all scores for a game type from database"""
+    try:
+        GameScore.query.filter_by(game_type=game_type).delete()
+        db.session.commit()
+        logger.info(f"Cleared all {game_type} scores from database")
+        return True
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database error clearing scores: {e}")
+        db.session.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"Error clearing scores from database: {e}")
+        db.session.rollback()
         return False
 
 @app.route('/save-score', methods=['POST'])
 def save_score():
-    """Save a game score"""
+    """Save a game score to PostgreSQL database"""
     try:
-        # Accept JSON; if missing, log raw body for debugging (Render issues)
+        # Accept JSON; if missing, log raw body for debugging
         data = request.get_json(silent=True)
         if data is None:
             raw_body = request.data.decode('utf-8', errors='ignore')
             logger.warning(f"/save-score received non-JSON body: {raw_body}")
             return jsonify({"success": False, "error": "Invalid JSON payload"}), 400
-        logger.info(f"/save-score payload: {data}")
-        game_type = data.get('gameType')  # 'number' or 'word'
-        score = data.get('score', 0)
-        level = data.get('level', 1)
-        words_count = data.get('wordsCount', 0)
-        time_played = data.get('timePlayed', 0)
-        # Optional enriched metadata (may be absent in older clients)
-        range_desc = data.get('range')  # e.g. "1-100"
-        memory_time = data.get('memoryTime')
-        topic = data.get('topic')
-        chain_length = data.get('chainLength')
         
+        logger.info(f"/save-score payload: {data}")
+        
+        game_type = data.get('gameType')  # 'number' or 'word'
         if game_type not in ['number', 'word']:
             return jsonify({"success": False, "error": "Invalid game type"})
         
-        # Load existing scores
-        scores = load_scores()
-        
-        # Create score entry
-        score_entry = {
-            'score': score,
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-            'timestamp': datetime.now().isoformat(),
-            'timePlayed': time_played
+        # Prepare score data
+        score_data = {
+            'score': data.get('score', 0),
+            'timePlayed': data.get('timePlayed', 0),
+            'playerId': data.get('playerId'),
+            'playerName': data.get('playerName')
         }
         
+        # Add game-specific data
         if game_type == 'number':
-            score_entry['level'] = level
-            if range_desc:
-                score_entry['range'] = range_desc
-            if memory_time is not None:
-                score_entry['memoryTime'] = memory_time
-            scores['number_game'].append(score_entry)
-            # Keep only top 10 scores
-            scores['number_game'] = sorted(scores['number_game'], 
-                                         key=lambda x: x['score'], reverse=True)[:10]
-        else:  # word game
-            score_entry['wordsCount'] = words_count
-            if topic:
-                score_entry['topic'] = topic
-            if chain_length is not None:
-                score_entry['chainLength'] = chain_length
-            scores['word_game'].append(score_entry)
-            # Keep only top 10 scores
-            scores['word_game'] = sorted(scores['word_game'], 
-                                       key=lambda x: x['score'], reverse=True)[:10]
+            score_data.update({
+                'level': data.get('level', 1),
+                'minRange': data.get('minRange'),
+                'maxRange': data.get('maxRange'),
+                'memoryTime': data.get('memoryTime')
+            })
+        elif game_type == 'word':
+            score_data.update({
+                'topic': data.get('topic'),
+                'wordsCount': data.get('wordsCount', 0),
+                'chainLength': data.get('chainLength')
+            })
         
-        # Save scores
-        if save_scores(scores):
-            return jsonify({"success": True})
+        # Save to database
+        if save_score_to_db(game_type, score_data):
+            return jsonify({"success": True, "message": "Score saved successfully"})
         else:
-            return jsonify({"success": False, "error": "Failed to save score"})
+            return jsonify({"success": False, "error": "Failed to save score to database"})
             
     except Exception as e:
-        logger.error(f"Error saving score: {e}")
+        logger.error(f"Error in save_score endpoint: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/get-scores/<game_type>')
 def get_scores(game_type):
-    """Get scores for a specific game type"""
+    """Get top scores for a specific game type from database"""
     try:
         if game_type not in ['number', 'word']:
             return jsonify({"success": False, "error": "Invalid game type"})
         
-        scores = load_scores()
-        game_key = f'{game_type}_game'
-        
-        if game_key in scores:
-            return jsonify({"success": True, "scores": scores[game_key]})
-        else:
-            return jsonify({"success": True, "scores": []})
+        scores = get_top_scores(game_type, limit=10)
+        return jsonify({"success": True, "scores": scores})
             
     except Exception as e:
         logger.error(f"Error getting scores: {e}")
@@ -494,17 +596,13 @@ def get_scores(game_type):
 
 @app.route('/clear-scores/<game_type>', methods=['POST'])
 def clear_scores(game_type):
-    """Clear scores for a specific game type"""
+    """Clear all scores for a specific game type in database"""
     try:
         if game_type not in ['number', 'word']:
             return jsonify({"success": False, "error": "Invalid game type"})
         
-        scores = load_scores()
-        game_key = f'{game_type}_game'
-        scores[game_key] = []
-        
-        if save_scores(scores):
-            return jsonify({"success": True})
+        if clear_scores_db(game_type):
+            return jsonify({"success": True, "message": f"All {game_type} scores cleared"})
         else:
             return jsonify({"success": False, "error": "Failed to clear scores"})
             
@@ -544,6 +642,9 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
+    # Initialize database
+    init_db()
+    
     # Get configuration from environment variables
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     # Use PORT env var (required by Render) or fall back to FLASK_PORT then 5000
@@ -553,6 +654,13 @@ if __name__ == '__main__':
     # Print startup information
     print("🎮 Shiritori Method Game Server Starting...")
     print("=" * 50)
+    
+    # Database info
+    db_url = app.config['SQLALCHEMY_DATABASE_URI']
+    if 'postgresql' in db_url:
+        print("🗄️  Database: PostgreSQL (Production)")
+    else:
+        print("🗄️  Database: SQLite (Development)")
     
     if GENAI_AVAILABLE and GEMINI_API_KEY and model:
         print("✅ Gemini AI: Enabled")
@@ -581,7 +689,7 @@ if __name__ == '__main__':
     print("   - Number Memory Game")
     print("   - Shiritori Word Game")
     print("   - Responsive Design")
-    print("   - Score Tracking")
+    print("   - PostgreSQL Score Tracking")
     print("=" * 50)
     
     # Run the Flask app
