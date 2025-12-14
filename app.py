@@ -541,7 +541,8 @@ def save_score():
             logger.warning(f"/save-score received non-JSON body: {raw_body}")
             return jsonify({"success": False, "error": "Invalid JSON payload"}), 400
         
-        logger.info(f"/save-score payload: {data}")
+        logger.info(f"DEBUG: /save-score raw payload: {data}")
+        print(f"DEBUG: /save-score raw payload: {data}") # Force print to stdout
         
         game_type = data.get('gameType')  # 'number' or 'word'
         if game_type not in ['number', 'word']:
