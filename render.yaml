@@ -3,9 +3,7 @@ services:
     name: shiritori-method-game
     env: python
     plan: free
-    buildCommand: |
       pip install -r requirements.txt
-      python init_db.py
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 app:app
     envVars:
       - key: FLASK_ENV
@@ -18,14 +16,6 @@ services:
         value: 1
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: DATABASE_URL
-        fromDatabase:
-          name: shiritori-game-db
-          property: connectionString
     healthCheckPath: /health
 
-databases:
-  - name: shiritori-game-db
-    databaseName: shiritori_game
-    user: shiritori_user
-    plan: free
+
