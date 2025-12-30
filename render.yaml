@@ -3,7 +3,7 @@ services:
     name: shiritori-method-game
     env: python
     plan: free
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 app:app
     envVars:
       - key: FLASK_ENV
